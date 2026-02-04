@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: intercom_postgres
+    environment:
+      POSTGRES_DB: intercom
+      POSTGRES_USER: intercom
+      POSTGRES_PASSWORD: intercom
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: intercom_mqtt
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  backend:
+    build: ./backend
+    container_name: intercom_backend
+    depends_on:
+      - postgres
+      - mosquitto
+    environment:
+      DATABASE_URL: postgresql+psycopg2://intercom:intercom@postgres:5432/intercom
+      MQTT_HOST: mosquitto
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  pg_data:
