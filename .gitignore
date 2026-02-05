@@ -5,3 +5,4 @@ __pycache__/
 .vscode/
 *.pyc
 alembic.ini
+full code.txt
