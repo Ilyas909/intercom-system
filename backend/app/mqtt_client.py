@@ -21,6 +21,8 @@ def handle_message(topic: str, payload: dict):
 
         mac = parts[1]
         event_type = parts[2]
+        if event_type == "cmd" or event_type == "door_closed":
+            return
 
         with Session(engine) as session:
             # Получаем или создаём домофон
@@ -51,7 +53,6 @@ def handle_message(topic: str, payload: dict):
 
             elif event_type == "call":
                 apartment = payload.get("apartment", "N/A")
-                intercom.door_status = "ringing"
                 print(f"Call from {mac} to apartment {apartment}")
 
             elif event_type == "key":

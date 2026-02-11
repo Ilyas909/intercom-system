@@ -3,9 +3,9 @@ import json
 import random
 import threading
 from datetime import datetime
-import paho.mqtt.client as mqtt
 from typing import Dict, Optional
-
+import os
+from paho.mqtt import client as mqtt
 
 class IntercomEmulator:
     """Эмулятор одного домофона"""
@@ -25,18 +25,23 @@ class IntercomEmulator:
         self.apartments = list(range(1, 21))  # Квартиры 1-20
 
         # Инициализация MQTT клиента
-        self.client = mqtt.Client(client_id=f"intercom_{mac}")
+        try:
+            # Для paho-mqtt >= 2.0
+            self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"intercom_{mac}")
+        except AttributeError:
+            # Для старых версий (совместимость)
+            self.client = mqtt.Client(client_id=f"intercom_{mac}")
         self.client.on_message = self.on_message
         self.client.on_connect = self.on_connect
 
-        print(f"🏠 Intercom {self.mac} initialized")
+        print(f"Intercom {self.mac} initialized")
 
-    def on_connect(self, client, userdata, flags, rc):
+    def on_connect(self, client, userdata, flags, rc, properties=None):
         """Обработчик подключения к MQTT"""
         if rc == 0:
             print(f"✅ {self.mac}: Connected to MQTT broker")
             self.client.subscribe(f"intercom/{self.mac}/cmd")
-            print(f"📡 {self.mac}: Subscribed to commands")
+            print(f"{self.mac}: Subscribed to commands")
         else:
             print(f"❌ {self.mac}: Failed to connect (code {rc})")
 
@@ -44,20 +49,14 @@ class IntercomEmulator:
         """Обработчик входящих команд"""
         try:
             data = json.loads(msg.payload.decode())
-            print(f"📥 {self.mac}: CMD received: {data}")
-
             if data.get("action") == "open":
-                apartment = data.get("apartment", "N/A")
-                print(f"🚪 {self.mac}: Opening door for apartment {apartment}")
-
+                print(f"{self.mac}: opening the door from the server")
                 # Меняем статус двери
                 self.door_status = "open"
-
                 # Отправляем событие открытия
                 self.publish_event(
                     "door_opened",
                     {
-                        "apartment": apartment,
                         "source": "remote",
                         "timestamp": datetime.utcnow().isoformat()
                     }
@@ -72,26 +71,17 @@ class IntercomEmulator:
     def auto_close_door(self):
         """Автоматически закрывает дверь через 5 секунд"""
         self.door_status = "closed"
-        print(f"🚪 {self.mac}: Door auto-closed")
-
-        # Отправляем событие закрытия (опционально)
-        self.publish_event(
-            "door_closed",
-            {"source": "auto", "timestamp": datetime.utcnow().isoformat()}
-        )
 
     def publish_event(self, event_type: str, payload: Dict):
         """Отправляет событие в MQTT"""
         topic = f"intercom/{self.mac}/{event_type}"
         self.client.publish(topic, json.dumps(payload))
-        print(f"📤 {self.mac}: Published {event_type}")
 
     def heartbeat(self):
         """Отправляет heartbeat с информацией о статусе"""
         payload = {
             "door_status": self.door_status,
-            "timestamp": datetime.utcnow().isoformat(),
-            "uptime": time.time()  # Время работы эмулятора
+            "timestamp": datetime.utcnow().isoformat()
         }
         self.publish_event("heartbeat", payload)
         self.last_heartbeat = datetime.utcnow()
@@ -102,22 +92,19 @@ class IntercomEmulator:
         payload = {
             "apartment": apartment,
             "timestamp": datetime.utcnow().isoformat(),
-            "button": "call"  # Кнопка вызова
         }
         self.publish_event("call", payload)
-        print(f"🔔 {self.mac}: Call to apartment {apartment}")
+
 
     def simulate_key(self):
         """Симулирует использование ключа"""
         apartment = random.choice(self.apartments)
-        key_id = f"KEY_{random.randint(1000, 9999)}"
         payload = {
             "apartment": apartment,
-            "key_id": key_id,
             "timestamp": datetime.utcnow().isoformat()
         }
         self.publish_event("key", payload)
-        print(f"🔑 {self.mac}: Key {key_id} used for apartment {apartment}")
+
 
     def start(self):
         """Запускает эмулятор"""
@@ -140,7 +127,7 @@ class IntercomEmulator:
                 time.sleep(30)
 
         except KeyboardInterrupt:
-            print(f"\n👋 {self.mac}: Shutting down...")
+            print(f"\n{self.mac}: Shutting down...")
             self.client.loop_stop()
             self.client.disconnect()
 
@@ -162,7 +149,7 @@ def run_multiple_intercoms():
         {"mac": "AA:BB:CC:04", "apartments": list(range(31, 41))},
     ]
 
-    broker = "localhost"  # Или "mosquitto" если запускается в докере
+    broker = os.getenv("MQTT_BROKER", "mosquitto")
 
     intercoms = []
 
@@ -178,17 +165,16 @@ def run_multiple_intercoms():
             name=f"Intercom-{config['mac']}"
         )
         thread.start()
-        print(f"▶️ Started thread for {config['mac']}")
+        print(f"Started thread for {config['mac']}")
 
-    print(f"\n🚀 Started {len(intercoms)} intercom emulators")
+    print(f"\nStarted {len(intercoms)} intercom emulators")
     print("Press Ctrl+C to stop\n")
 
     try:
-        # Ждём неопределённо долго
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n👋 Shutting down all intercoms...")
+        print("\nShutting down all intercoms...")
         for intercom in intercoms:
             intercom.client.loop_stop()
             intercom.client.disconnect()

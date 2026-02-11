@@ -1,9 +1,8 @@
 from fastapi import FastAPI, HTTPException
-from app.mqtt_client import start_mqtt_thread
+from app.mqtt_client import mqtt_client, start_mqtt_thread
 from paho.mqtt.publish import single
 from app.db import Session, engine
 from app.models import Intercom, Event, SQLModel
-from app.mqtt_client import mqtt_client  # нужно будет экспортировать клиент
 from datetime import datetime
 import json
 import os
@@ -22,10 +21,6 @@ app = FastAPI()
 def on_startup():
     start_mqtt_thread()
 
-@app.get("/")
-def root():
-    return {"status": "ok"}
-
 
 @app.post("/open/{mac}")
 def open_door(mac: str, apartment: int | None = None):
@@ -36,6 +31,8 @@ def open_door(mac: str, apartment: int | None = None):
         ).first()
         if not intercom:
             raise HTTPException(status_code=404, detail="Intercom not found")
+        if intercom.status != "online":
+            raise HTTPException(status_code=400, detail="Intercom is offline")
 
         # Отправляем команду в MQTT
         topic = f"intercom/{mac}/cmd"
@@ -69,7 +66,6 @@ def api_intercoms():
     return intercoms
 
 
-# Добавить после других эндпоинтов
 @app.get("/api/events")
 def get_events(mac: str | None = None, limit: int = 50):
     """Получить последние события (фильтр по MAC опционален)"""
@@ -91,27 +87,3 @@ def get_events(mac: str | None = None, limit: int = 50):
             }
             for e in events
         ]
-
-
-@app.post("/api/open/{mac}")
-def open_door(mac: str):
-    """Открыть дверь через сервер (сценарий от оператора)"""
-    try:
-        # Публикуем команду в MQTT
-        mqtt_client.publish(f"intercom/{mac}/command/open", json.dumps({"source": "operator"}))
-
-        # Сразу создаём событие в БД
-        with Session(engine) as session:
-            event = Event(
-                intercom_mac=mac,
-                event_type="door_opened",
-                apartment=None,
-                payload=json.dumps({"source": "operator", "action": "remote_open"}),
-                created_at=datetime.utcnow()
-            )
-            session.add(event)
-            session.commit()
-
-        return {"status": "success", "message": f"Open command sent to {mac}"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}

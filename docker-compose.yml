@@ -12,6 +12,11 @@ services:
       - "5434:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intercom"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   mosquitto:
     image: eclipse-mosquitto
@@ -25,8 +30,10 @@ services:
     build: ./backend
     container_name: intercom_backend
     depends_on:
-      - postgres
-      - mosquitto
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+psycopg2://intercom:intercom@postgres:5432/intercom
       MQTT_HOST: mosquitto
@@ -34,7 +41,19 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  intercom_emulator:
+    build: ./intercom_emulator
+    container_name: intercom_emulators
+    depends_on:
+      mosquitto:
+        condition: service_started
+    environment:
+      MQTT_BROKER: mosquitto
+    command: python -u intercom.py
 
 volumes:
   pg_data:
