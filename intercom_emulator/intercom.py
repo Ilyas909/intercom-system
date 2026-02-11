@@ -72,12 +72,6 @@ class IntercomEmulator:
         """Автоматически закрывает дверь через 5 секунд"""
         self.door_status = "closed"
 
-        # Отправляем событие закрытия (опционально)
-        self.publish_event(
-            "door_closed",
-            {"source": "auto", "timestamp": datetime.utcnow().isoformat()}
-        )
-
     def publish_event(self, event_type: str, payload: Dict):
         """Отправляет событие в MQTT"""
         topic = f"intercom/{self.mac}/{event_type}"
@@ -87,8 +81,7 @@ class IntercomEmulator:
         """Отправляет heartbeat с информацией о статусе"""
         payload = {
             "door_status": self.door_status,
-            "timestamp": datetime.utcnow().isoformat(),
-            "uptime": time.time()  # Время работы эмулятора
+            "timestamp": datetime.utcnow().isoformat()
         }
         self.publish_event("heartbeat", payload)
         self.last_heartbeat = datetime.utcnow()
@@ -99,7 +92,6 @@ class IntercomEmulator:
         payload = {
             "apartment": apartment,
             "timestamp": datetime.utcnow().isoformat(),
-            "button": "call"  # Кнопка вызова
         }
         self.publish_event("call", payload)
 
@@ -107,10 +99,8 @@ class IntercomEmulator:
     def simulate_key(self):
         """Симулирует использование ключа"""
         apartment = random.choice(self.apartments)
-        key_id = f"KEY_{random.randint(1000, 9999)}"
         payload = {
             "apartment": apartment,
-            "key_id": key_id,
             "timestamp": datetime.utcnow().isoformat()
         }
         self.publish_event("key", payload)
