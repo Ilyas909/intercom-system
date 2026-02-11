@@ -59,7 +59,7 @@ docker logs -f intercom_emulators
 ```
 
 ## 4️⃣ Открыть интерфейс оператора
-http://localhost:8000
+http://localhost:8000/dashboard
 
 
 ### Автоматически запускаются 4 домофона:
