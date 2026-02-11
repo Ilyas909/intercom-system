@@ -297,7 +297,6 @@
                         <th>MAC домофона</th>
                         <th>Тип события</th>
                         <th>Квартира</th>
-                        <th>Детали</th>
                     </tr>
                 </thead>
                 <tbody id="events-table">
@@ -317,11 +316,6 @@
     </div>
 
     <script>
-        // Анимация загрузки
-        // @keyframes spin {
-        //     0% { transform: rotate(0deg); }
-        //     100% { transform: rotate(360deg); }
-        // }
 
         // Форматирование времени
         function formatDateTime(dateString) {
@@ -371,14 +365,9 @@
                     if (i.door_status === 'open') {
                         doorClass = 'door-open';
                         doorText = '🚪 Открыта';
-                    } else if (i.door_status === 'closed') {
+                    } else {
                         doorClass = 'door-closed';
                         doorText = '🔒 Закрыта';
-                    } else if (i.door_status === 'ringing') {
-                        doorClass = 'door-ringing';
-                        doorText = '🔔 Звонок';
-                    } else {
-                        doorText = '❓ ' + i.door_status;
                     }
 
                     // Кнопка открытия (отключена если оффлайн)
@@ -430,7 +419,6 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    alert(`✅ Команда отправлена на ${mac}`);
                 } else {
                     alert(`❌ Ошибка: ${data.detail || 'Неизвестная ошибка'}`);
                 }
@@ -458,24 +446,6 @@
                     };
                     const icon = icons[e.event_type] || 'ℹ️';
 
-                    // Детали из payload
-                    let details = '';
-                    try {
-                        const payload = e.payload ? JSON.parse(e.payload) : {};
-                        if (e.event_type === 'key') {
-                            details = `Ключ: ${payload.key_id || 'N/A'}`;
-                        } else if (e.event_type === 'door_opened') {
-                            details = `Источник: ${payload.source || 'N/A'}`;
-                        } else if (e.event_type === 'call') {
-                            details = `Квартира ${e.apartment || 'N/A'}`;
-                        } else if (e.event_type === 'open_command') {
-                            details = `Удалённая команда от оператора`;
-                        } else {
-                            details = JSON.stringify(payload);
-                        }
-                    } catch (err) {
-                        details = e.payload || '-';
-                    }
 
                     // Цвет строки в зависимости от типа
                     let rowClass = '';
@@ -489,7 +459,6 @@
                             <td><code style="background: #f5f5f5; padding: 4px 8px; border-radius: 4px;">${e.intercom_mac}</code></td>
                             <td><strong><span class="event-icon">${icon}</span>${e.event_type}</strong></td>
                             <td>${e.apartment || '-'}</td>
-                            <td>${details}</td>
                         </tr>
                     `;
                 }).join('');
